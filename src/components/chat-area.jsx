@@ -135,6 +135,32 @@ export const ChatArea = ({ chat }) => {
         }
     };
 
+    useEffect(() => {
+        const fetchMessages = async () => {
+            if (!conversationId) {
+                setMessages([]); // Clear messages if no conversationId
+                return;
+            }
+    
+            try {
+                const response = await fetch(`/api/messages/${conversationId}`);
+                if (!response.ok) {
+                    console.error("Error fetching messages:", await response.text());
+                    setMessages([]); // Clear messages on error
+                    return;
+                }
+    
+                const fetchedMessages = await response.json();
+                setMessages(fetchedMessages);
+            } catch (error) {
+                console.error("Error fetching messages:", error);
+                setMessages([]); // Clear messages on error
+            }
+        };
+    
+        fetchMessages();
+    }, [conversationId]);
+
     return (
         <div className="flex-1 flex flex-col bg-background">
             <div className="p-4 border-b flex items-center justify-between">
@@ -171,17 +197,13 @@ export const ChatArea = ({ chat }) => {
             </div>
             <ScrollArea className="flex-1 p-4">
                 <div className="space-y-4">
-                    {messages.map((msg) => {
-                    
-                    return (
-                        <div key={msg.id || `${msg.senderId}-${msg.content}`} className={`flex ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[70%] rounded-lg p-3 ${msg.senderId === user?.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                            <p>{msg.content}</p>
-                            
+                {messages.map((msg) => (
+                    <div key={msg?.id || `${msg?.senderId}-${msg?.content}`} className={`flex ${msg?.senderId === user?.id ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[70%] rounded-lg p-3 ${msg?.senderId === user?.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                            <p>{msg?.content}</p>
                         </div>
-                        </div>
-                    );
-                    })}
+                    </div>
+                ))}
                     <div ref={scrollRef} />
                 </div>
             </ScrollArea>
