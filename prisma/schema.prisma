@@ -1,0 +1,62 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String                  @id
+  email         String                  @unique
+  name          String?
+  imageUrl      String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  sentMessages  Message[]               @relation("SentMessages")
+  receivedMessages Message[]           @relation("ReceivedMessages")
+  conversations ConversationParticipant[]
+
+  @@map("users")
+}
+
+model Message {
+  id           String      @id @default(cuid())
+  content      String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  read         Boolean     @default(false)
+  senderId     String
+  sender       User        @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId   String
+  receiver     User        @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([conversationId])
+  @@map("messages")
+}
+
+model Conversation {
+  id            String                  @id @default(cuid())
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  lastMessageAt DateTime?
+  messages      Message[]
+  participants  ConversationParticipant[]
+
+  @@map("conversations")
+}
+
+model ConversationParticipant { // The join table
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String
+
+  @@id([conversationId, userId]) // Composite primary key
+  @@map("conversation_participants") // Optional: Explicitly map the table name
+}
