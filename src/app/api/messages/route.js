@@ -2,7 +2,7 @@ import { getAuth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 
-export async function POST(request) { // Correct: request, not req
+export async function POST(request) { 
     try {
         const { userId } = getAuth(request);
 
@@ -12,11 +12,10 @@ export async function POST(request) { // Correct: request, not req
 
         console.log('userId:', userId);
 
-        // Correct: Use request.json()
-        const messageData = await request.json(); // Use the correct request object
-        const { content, receiverId, conversationId } = messageData; // Include conversationId
-
-        if (!content || !receiverId || !conversationId) { // Check for conversationId
+        
+        const messageData = await request.json(); 
+        const { content, receiverId, conversationId } = messageData;
+        if (!content || !receiverId || !conversationId) { 
             return new NextResponse('Invalid message data: Missing content, receiverId or conversationId', { status: 400 });
         }
 
@@ -25,7 +24,7 @@ export async function POST(request) { // Correct: request, not req
                 content,
                 senderId: userId,
                 receiverId,
-                conversationId, // Use the provided conversationId
+                conversationId, 
             },
         });
 
@@ -35,7 +34,7 @@ export async function POST(request) { // Correct: request, not req
 
     } catch (error) {
         console.error('Error in messages API:', error);
-        console.error("Full Error Object:", JSON.stringify(error, Object.getOwnPropertyNames(error), 2)); // Improved error logging
+        console.error("Full Error Object:", JSON.stringify(error, Object.getOwnPropertyNames(error), 2)); 
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

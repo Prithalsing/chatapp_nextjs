@@ -4,17 +4,17 @@ let io;
 
 export const initializeSocketIO = (httpServer) => {
     if (io) {
-        return io; // Return existing instance
+        return io; 
     }
 
     io = new Server(httpServer, {
         path: "/api/socket/io",
         addTrailingSlash: false,
         cors: {
-            origin: "*", // Adjust for production
+            origin: "*", 
             methods: ["GET", "POST"]
         },
-        transports: ['websocket', 'polling'], // Allow both for fallback
+        transports: ['websocket', 'polling'], 
     });
 
     io.on("connection", (socket) => {

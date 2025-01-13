@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 export async function GET(req, { params }) {
     try {
-        const { conversationId } = params;
+        const { conversationId } = await params;
 
         if (!conversationId) {
             return NextResponse.json({ error: "Missing conversationId" }, { status: 400 });
@@ -32,3 +32,4 @@ export async function GET(req, { params }) {
         await prisma.$disconnect();
     }
 }
+

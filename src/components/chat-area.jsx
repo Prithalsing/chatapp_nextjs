@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, Paperclip, Smile, MoreVertical, Phone, Video } from 'lucide-react';
+import { Send, Paperclip, Smile, MoreVertical, Phone, Video, Upload } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUser } from "@clerk/nextjs";
 import { io } from 'socket.io-client';
-import { parse, isValid, format } from 'date-fns';
 
-let socket; // Declare socket outside the component
+
+let socket; 
 
 export const ChatArea = ({ chat }) => {
     const [message, setMessage] = useState('');
@@ -17,6 +17,19 @@ export const ChatArea = ({ chat }) => {
     const [conversationId, setConversationId] = useState(null);
     const scrollRef = useRef(null);
     const [isInitializing, setIsInitializing] = useState(false);
+    const fileInputRef = useRef(null); // Ref for the file input
+    const [selectedFile, setSelectedFile] = useState(null);
+
+    useEffect(() => {
+        if (fileInputRef.current) {
+            fileInputRef.current.addEventListener('change', handleFileUpload);
+        }
+        return () => {
+            if (fileInputRef.current) {
+                fileInputRef.current.removeEventListener('change', handleFileUpload);
+            }
+        };
+    }, []);
 
     useEffect(() => {
         const initializeConversation = async () => {
@@ -42,14 +55,14 @@ export const ChatArea = ({ chat }) => {
                 const data = await response.json();
                 setConversationId(data.id);
 
-                // Initialize Socket.IO here, after conversationId is set AND only if socket doesnt exist
+                
                 if (isLoaded && user && data.id && !socket) {
                     console.log("Connecting socket to:", process.env.NEXT_PUBLIC_SOCKET_IO_URL);
                     socket = io(process.env.NEXT_PUBLIC_SOCKET_IO_URL, {path: "/api/socket/io"});
 
                     socket.on("connect", () => {
                         console.log("Socket connected");
-                        socket.emit('join-chat', data.id); // Use the data.id here
+                        socket.emit('join-chat', data.id); 
                     });
 
                     socket.on("receive-message", (message) => {
@@ -75,13 +88,13 @@ export const ChatArea = ({ chat }) => {
         }
 
         return () => {
-            if (socket) {
+            if (socket?.connected) {
                 socket.disconnect();
                 console.log("Socket manually disconnected");
-                socket = null;
             }
+            socket = null;
         };
-    }, [chat?.id, user?.id, isLoaded]); // Removed conversationId and socketInitialized from dependency array
+    }, [chat?.id, user?.id, isLoaded]); 
 
     const handleKeyPress = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -89,7 +102,12 @@ export const ChatArea = ({ chat }) => {
             sendMessage();
         }
     };
-
+    
+    const scrollToBottom = () => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      };
 
 
     const sendMessage = async () => {
@@ -118,8 +136,7 @@ export const ChatArea = ({ chat }) => {
                 throw new Error(`Failed to send message: ${errorText}`);
             }
 
-            const newMessage = await response.json(); // Read JSON ONCE
-            console.log("Emitting send-message:", newMessage); // Log before emit
+            const newMessage = await response.json();  
             socket.emit('send-message', newMessage);
             setMessages((prev) => [...prev, newMessage.newMessage]);
             setMessage('');
@@ -129,37 +146,66 @@ export const ChatArea = ({ chat }) => {
         }
     };
 
-    const scrollToBottom = () => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollIntoView({ behavior: 'smooth' });
-        }
-    };
-
     useEffect(() => {
         const fetchMessages = async () => {
             if (!conversationId) {
-                setMessages([]); // Clear messages if no conversationId
+                setMessages([]); 
                 return;
             }
-    
             try {
                 const response = await fetch(`/api/messages/${conversationId}`);
                 if (!response.ok) {
                     console.error("Error fetching messages:", await response.text());
-                    setMessages([]); // Clear messages on error
+                    setMessages([]); 
                     return;
                 }
     
                 const fetchedMessages = await response.json();
                 setMessages(fetchedMessages);
+                scrollToBottom();
             } catch (error) {
                 console.error("Error fetching messages:", error);
-                setMessages([]); // Clear messages on error
+                setMessages([]); 
             }
         };
     
         fetchMessages();
     }, [conversationId]);
+
+    const handleFileUpload = (event) => {
+        console.log("handleFileUpload CALLED!", event);
+        if (event.target.files && event.target.files.length > 0) {
+            setSelectedFile(event.target.files[0]);
+            console.log("Selected file:", event.target.files[0]);
+
+            const file = event.target.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData,
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => { throw new Error(text) });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("File URL from server:", data.fileUrl);
+                    sendMessage({ content: `[Attachment: ${file.name}]`, fileUrl: data.fileUrl });
+                })
+                .catch(error => {
+                    console.error("File upload error:", error);
+                });
+
+
+        } else {
+            console.log("No file selected");
+        }
+    };
+
 
     return (
         <div className="flex-1 flex flex-col bg-background">
@@ -197,13 +243,20 @@ export const ChatArea = ({ chat }) => {
             </div>
             <ScrollArea className="flex-1 p-4">
                 <div className="space-y-4">
-                {messages.map((msg) => (
-                    <div key={msg?.id || `${msg?.senderId}-${msg?.content}`} className={`flex ${msg?.senderId === user?.id ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[70%] rounded-lg p-3 ${msg?.senderId === user?.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                            <p>{msg?.content}</p>
+                    {messages.map((msg) => (
+                        <div key={msg?.id} className={`flex ${msg?.senderId === user?.id ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[70%] rounded-lg p-3 ${msg?.senderId === user?.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                                <p>{msg?.content}</p>
+                                {msg.fileUrl && ( 
+                                    <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
+                                        View Attachment
+                                    </a>
+                                )}
+                                <span className="text-xs opacity-70 mt-1 block">{new Date(msg.createdAt).toLocaleTimeString()}</span>
+                                
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    ))};
                     <div ref={scrollRef} />
                 </div>
             </ScrollArea>
@@ -212,9 +265,6 @@ export const ChatArea = ({ chat }) => {
             <div className="p-4 border-t flex items-center gap-2">
                 <Button variant="ghost" size="icon">
                     <Smile className="h-5 w-5" />
-                </Button>
-                <Button variant="ghost" size="icon">
-                    <Paperclip className="h-5 w-5" />
                 </Button>
                 <Input
                     placeholder="Type a message"
@@ -226,7 +276,22 @@ export const ChatArea = ({ chat }) => {
                 <Button size="icon" onClick={sendMessage}>
                     <Send className="h-5 w-5" />
                 </Button>
+                <input
+                    type="file"
+                    id="file-upload"
+                    style={{ display: 'none' }}
+                    ref={fileInputRef} 
+                    accept="image/*, .pdf, .doc, .docx"
+                />
+                <label htmlFor="file-upload">
+                    <Button variant="ghost" size="icon">
+                        <Upload className="h-5 w-5" />
+                    </Button>
+                </label>                         
             </div>
         </div>
     );
 };
+
+
+

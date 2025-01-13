@@ -14,14 +14,14 @@ export async function GET(request) {
       );
     }
 
-    // Use clerkClient() to access users
-    const clerkUser = await (await clerkClient()).users.getUser(userId);  // Using clerkClient() here
+    
+    const clerkUser = await (await clerkClient()).users.getUser(userId);  
 
 
-    // First, ensure the current user exists in our database
+    
     await prisma.user.upsert({
       where: { id: userId },
-      update: {}, // No updates needed
+      update: {}, 
       create: {
         id: userId,
         email: clerkUser.emailAddresses[0]?.emailAddress || '',
@@ -30,7 +30,7 @@ export async function GET(request) {
       },
     });
 
-    // Fetch all users except the current user
+    
     const users = await prisma.user.findMany({
       where: {
         NOT: {
