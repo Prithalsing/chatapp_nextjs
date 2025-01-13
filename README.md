@@ -15,6 +15,9 @@ bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+![Photo 1](/LoginPage.png)
+![Photo 2](/Chatinterface.png)
+![Photo 3](/homePage.png)
 
 
 
