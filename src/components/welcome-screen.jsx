@@ -18,7 +18,7 @@ export function WelcomeScreen({ isLoaded, isSignedIn }) {
         ) : !isSignedIn ? (
           <div className="text-center space-y-4 backdrop-blur-lg rounded-2xl shadow-xl p-8 mx-auto">
             <h1 className="text-4xl font-bold text-gray-800">
-              Welcome to WhatsApp Web Clone
+              Welcome to MyChat Web
             </h1>
             <p className="text-lg text-gray-600">
               A sleek and modern messaging platform designed to keep you
