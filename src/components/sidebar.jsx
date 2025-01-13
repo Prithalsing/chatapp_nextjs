@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Search, Settings, MessageSquare, MoreVertical, Users } from "lucide-react";
+import { Search, Settings, MessageSquare, MoreVertical, Users, Home, Bell, Settings2, SettingsIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -145,7 +145,20 @@ export function Sidebar({ onChatSelect, selectedChat, isLoaded, isSignedIn, user
             </div>
           ))
         )}
+
       </ScrollArea>
+      <div className="p-4 border-t flex justify-around items-center bg-background">
+          <Button variant="ghost" size="icon" aria-label="Home">
+            <Home className="h-5 w-5" />
+          </Button>
+          <Button variant="ghost" size="icon" aria-label="Notifications">
+            <Bell className="h-5 w-5" />
+          </Button>
+          <Button variant="ghost" size="icon" aria-label="Settings">
+            <SettingsIcon className="h-5 w-5" />
+          </Button>
+        </div>
+       
     </div>
     </>
     
