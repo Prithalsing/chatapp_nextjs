@@ -58,13 +58,17 @@ export function Sidebar({ onChatSelect, selectedChat, isLoaded, isSignedIn, user
   if (!isSignedIn) {
     return (
       <>
-      <div className="relative w-[500px] max-w-[500px] min-h-screen bg-gradient-to-br from-indigo-100 via-white to-purple-100 flex flex-col items-center justify-center">
+      <div className="relative w-[500px] max-w-[500px] min-h-screen flex flex-col items-center justify-center">
         <div>
         </div>
           <h2 className="text-2xl font-semibold mb-6">Hello master</h2>
           <p className="text-muted-foreground mb-8">Sign in to start chatting</p>
           <Link href="/signin">
-            <Button size="lg">
+            <Button 
+              size="lg"
+              onClick={() => router.push('/sign-in')}
+              className="w-full"
+            >
               Sign In
             </Button>
           </Link>

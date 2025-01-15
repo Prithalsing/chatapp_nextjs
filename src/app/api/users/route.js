@@ -14,11 +14,8 @@ export async function GET(request) {
       );
     }
 
-    
     const clerkUser = await (await clerkClient()).users.getUser(userId);  
 
-
-    
     await prisma.user.upsert({
       where: { id: userId },
       update: {}, 

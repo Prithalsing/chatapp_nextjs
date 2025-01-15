@@ -12,7 +12,6 @@ export async function POST(request) {
 
         console.log('userId:', userId);
 
-        
         const messageData = await request.json(); 
         const { content, receiverId, conversationId } = messageData;
         if (!content || !receiverId || !conversationId) { 

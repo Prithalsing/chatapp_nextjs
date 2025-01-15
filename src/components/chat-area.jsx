@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, Paperclip, Smile, MoreVertical, Phone, Video, Upload } from 'lucide-react';
+import { Send, Smile, Phone, Video, Upload, MoreVertical } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useUser } from "@clerk/nextjs";
 import { io } from 'socket.io-client';
+import { useUser } from '@clerk/nextjs';
 
-
-let socket; 
+let socket;
 
 export const ChatArea = ({ chat }) => {
     const [message, setMessage] = useState('');
@@ -17,8 +16,8 @@ export const ChatArea = ({ chat }) => {
     const [conversationId, setConversationId] = useState(null);
     const scrollRef = useRef(null);
     const [isInitializing, setIsInitializing] = useState(false);
-    const fileInputRef = useRef(null); // Ref for the file input
-    const [selectedFile, setSelectedFile] = useState(null);
+    const fileInputRef = useRef(null);
+    const [isConnected, setIsConnected] = useState(false);
 
     useEffect(() => {
         if (fileInputRef.current) {
@@ -32,83 +31,103 @@ export const ChatArea = ({ chat }) => {
     }, []);
 
     useEffect(() => {
-        const initializeConversation = async () => {
-            setIsInitializing(true);
-            if (!chat?.id || !user?.id) {
-                setIsInitializing(false);
-                return;
-            }
+        const connectSocket = async () => {
+            if (isLoaded && user && chat?.id && !socket) {
+                console.log("Attempting to connect to Socket.IO...");
+                socket = io(process.env.NEXT_PUBLIC_SOCKET_IO_URL);
 
-            try {
-                const response = await fetch('/api/conversations', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ participantIds: [user.id, chat.id] }),
+                socket.on('connect', () => {
+                    setIsConnected(true);
+                    console.log("Socket connected:", socket.id);
+                    socket.emit('join-chat', chat.id);
                 });
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error("Conversation API Error:", errorText);
-                    throw new Error(`Failed to initialize conversation: ${errorText}`);
-                }
-
-                const data = await response.json();
-                setConversationId(data.id);
-
-                
-                if (isLoaded && user && data.id && !socket) {
-                    console.log("Connecting socket to:", process.env.NEXT_PUBLIC_SOCKET_IO_URL);
-                    socket = io(process.env.NEXT_PUBLIC_SOCKET_IO_URL, {path: "/api/socket/io"});
-
-                    socket.on("connect", () => {
-                        console.log("Socket connected");
-                        socket.emit('join-chat', data.id); 
-                    });
-
-                    socket.on("receive-message", (message) => {
-                        console.log("CLIENT RECEIVED MESSAGE:", message);
-                        setMessages((prevMessages) => [...prevMessages, message]);
-                        scrollToBottom();
-                    });
-
-                    socket.on("disconnect", () => {
-                        console.log("Socket disconnected");
-                        socket = null;
+                if (chat?.id) {
+                    socket.emit('join-chat', chat.id, (response) => {
+                        if (response && response.status === 'ok') {
+                            console.log(`Successfully joined room: ${chat.id}`);
+                        } else {
+                            console.error(`Failed to join room: ${chat.id}`, response); // Log the response for debugging
+                        }
                     });
                 }
-            } catch (error) {
-                console.error('Error during conversation initialization:', error);
-            } finally {
-                setIsInitializing(false);
+                socket.on('receive-message', (message) => {
+                    setMessages((prevMessages) => [...prevMessages, message]);
+                    scrollToBottom();
+                });
+
+                socket.emit('join-chat', chat.id, (response) => {
+                    if (response && response.status === 'ok') {
+                        console.log(`Successfully joined room: ${chat.id}`);
+                    } else {
+                        console.error(`Failed to join room: ${chat.id}`, response?.message);
+                    }
+                });
+
+                socket.on('disconnect', () => {
+                    setIsConnected(false);
+                    console.log("Socket disconnected");
+                    socket = null;
+                });
+
+                socket.on('connect_error', (err) => {
+                    console.error('Socket connection error:', err);
+                });
             }
         };
 
+        connectSocket();
+
+        return () => {
+            if (socket) {
+                socket.disconnect();
+                console.log("Socket disconnected on cleanup");
+                socket = null;
+            }
+        };
+    }, [isLoaded, chat?.id, user?.id]);
+
+    const initializeConversation = async () => {
+        setIsInitializing(true);
+        if (!chat?.id || !user?.id) {
+            setIsInitializing(false);
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/conversations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ participantIds: [user.id, chat.id] }),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error("Conversation API Error:", errorText);
+                throw new Error(`Failed to initialize conversation: ${errorText}`);
+            }
+
+            const data = await response.json();
+            setConversationId(data.id);
+
+        } catch (error) {
+            console.error('Error during conversation initialization:', error);
+        } finally {
+            setIsInitializing(false);
+        }
+    };
+
+    useEffect(() => {
         if (isLoaded && !isInitializing) {
             initializeConversation();
         }
+    }, [isLoaded]);
 
-        return () => {
-            if (socket?.connected) {
-                socket.disconnect();
-                console.log("Socket manually disconnected");
-            }
-            socket = null;
-        };
-    }, [chat?.id, user?.id, isLoaded]); 
-
-    const handleKeyPress = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    };
-    
     const scrollToBottom = () => {
         if (scrollRef.current) {
-          scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+            scrollRef.current.scrollIntoView({ behavior: 'smooth' });
         }
-      };
-
+    };
 
     const sendMessage = async () => {
         if (!message.trim() || !isLoaded || !user?.id || !conversationId || !socket) return;
@@ -124,9 +143,7 @@ export const ChatArea = ({ chat }) => {
         try {
             const response = await fetch('/api/messages', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(messageData),
             });
 
@@ -136,7 +153,7 @@ export const ChatArea = ({ chat }) => {
                 throw new Error(`Failed to send message: ${errorText}`);
             }
 
-            const newMessage = await response.json();  
+            const newMessage = await response.json();
             socket.emit('send-message', newMessage);
             setMessages((prev) => [...prev, newMessage.newMessage]);
             setMessage('');
@@ -148,64 +165,44 @@ export const ChatArea = ({ chat }) => {
 
     useEffect(() => {
         const fetchMessages = async () => {
-            if (!conversationId) {
-                setMessages([]); 
-                return;
-            }
+            if (!conversationId) return;
+            
             try {
                 const response = await fetch(`/api/messages/${conversationId}`);
-                if (!response.ok) {
-                    console.error("Error fetching messages:", await response.text());
-                    setMessages([]); 
-                    return;
-                }
-    
+                if (!response.ok) throw new Error(await response.text());
+                
                 const fetchedMessages = await response.json();
                 setMessages(fetchedMessages);
                 scrollToBottom();
+                
             } catch (error) {
                 console.error("Error fetching messages:", error);
-                setMessages([]); 
+                setMessages([]);
             }
         };
-    
+
         fetchMessages();
     }, [conversationId]);
 
-    const handleFileUpload = (event) => {
-        console.log("handleFileUpload CALLED!", event);
+    const handleFileUpload = async (event) => {
         if (event.target.files && event.target.files.length > 0) {
-            setSelectedFile(event.target.files[0]);
-            console.log("Selected file:", event.target.files[0]);
-
             const file = event.target.files[0];
             const formData = new FormData();
             formData.append('file', file);
 
-            fetch('/api/upload', {
-                method: 'POST',
-                body: formData,
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.text().then(text => { throw new Error(text) });
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log("File URL from server:", data.fileUrl);
-                    sendMessage({ content: `[Attachment: ${file.name}]`, fileUrl: data.fileUrl });
-                })
-                .catch(error => {
-                    console.error("File upload error:", error);
-                });
+            try {
+                const response = await fetch('/api/upload', { method: 'POST', body: formData });
+                
+                if (!response.ok) throw new Error(await response.text());
 
-
-        } else {
-            console.log("No file selected");
+                const data = await response.json();
+                sendMessage({ content: `[Attachment: ${file.name}]`, fileUrl: data.fileUrl });
+                
+            } catch (error) {
+                console.error("File upload error:", error);
+            }
         }
     };
-
 
     return (
         <div className="flex-1 flex flex-col bg-background">
@@ -241,48 +238,49 @@ export const ChatArea = ({ chat }) => {
                     </Button>
                 </div>
             </div>
+
             <ScrollArea className="flex-1 p-4">
                 <div className="space-y-4">
                     {messages.map((msg) => (
                         <div key={msg?.id} className={`flex ${msg?.senderId === user?.id ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[70%] rounded-lg p-3 ${msg?.senderId === user?.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
                                 <p>{msg?.content}</p>
-                                {msg.fileUrl && ( 
-                                    <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
-                                        View Attachment
-                                    </a>
+                                {msg.fileUrl && (
+                                    <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">View Attachment</a>
                                 )}
                                 <span className="text-xs opacity-70 mt-1 block">{new Date(msg.createdAt).toLocaleTimeString()}</span>
-                                
                             </div>
                         </div>
-                    ))};
+                    ))}
                     <div ref={scrollRef} />
                 </div>
             </ScrollArea>
-
 
             <div className="p-4 border-t flex items-center gap-2">
                 <Button variant="ghost" size="icon">
                     <Smile className="h-5 w-5" />
                 </Button>
+
                 <Input
                     placeholder="Type a message"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMessage())}
                     className="flex-1"
                 />
+
                 <Button size="icon" onClick={sendMessage}>
                     <Send className="h-5 w-5" />
                 </Button>
+
                 <input
                     type="file"
                     id="file-upload"
                     style={{ display: 'none' }}
-                    ref={fileInputRef} 
+                    ref={fileInputRef}
                     accept="image/*, .pdf, .doc, .docx"
                 />
+
                 <label htmlFor="file-upload">
                     <Button variant="ghost" size="icon">
                         <Upload className="h-5 w-5" />
@@ -292,6 +290,3 @@ export const ChatArea = ({ chat }) => {
         </div>
     );
 };
-
-
-
